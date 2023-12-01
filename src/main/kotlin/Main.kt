@@ -3,24 +3,16 @@ fun main() {
     val memoria1 = Memoria()
     val processador1 = Processador()
     val rotina0 = Rotina()
-    val rotina1 = Rotina(null, Evento("evento X", null, 90, 555, EventType.X, rotina0))
-    val rotinaInterrup = Rotina(50)
+    val rotinaDependencia = Rotina(null, Evento("evento X", null, 90, 555, EventType.X, rotina0))
+    val rotinaInterrupcao = Rotina(50)
     val logs = mutableListOf<Log>()
     val eventoA = Evento(
         "evento A",
+        2,
         5,
-        5,
-        40,
+        400,
         EventType.A,
-        rotina0
-    )
-    val eventoB = Evento(
-        "evento B",
-        20,
-        80,
-        200,
-        EventType.B,
-        rotinaInterrup
+        rotinaInterrupcao
     )
     val eventoC = Evento(
         "evento C",
@@ -28,7 +20,15 @@ fun main() {
         75,
         400,
         EventType.C,
-        rotina1
+        rotinaDependencia
+    )
+    val eventoB = Evento(
+        "evento B",
+        20,
+        80,
+        200,
+        EventType.B,
+        rotina0
     )
     val eventoD = Evento(
         "evento D",
@@ -37,16 +37,60 @@ fun main() {
         800,
         EventType.D,
     )
-    val listaDeEventos = listOf(eventoD, eventoB, eventoC, eventoA)
-    val lEOrdenada = listaDeEventos.sortedBy { it.chegada }.toMutableList()
+    val eventoE = Evento(
+        "evento D",
+        76,
+        122,
+        800,
+        EventType.C,
+        rotinaInterrupcao
+    )
+    val eventoF = Evento(
+        "evento F",
+        50,
+        75,
+        400,
+        EventType.C,
+        rotinaDependencia
+    )
+    val eventoG = Evento(
+        "evento G",
+        50,
+        75,
+        400,
+        EventType.C,
+        rotinaDependencia
+    )
+    val eventoI_O = Evento(
+        "evento I/O",
+        50,
+        75,
+        400,
+        EventType.A,
+        rotina0,
+        Device("Mouse", "Entrada")
+    )
+    val eventoI_O2 = Evento(
+        "evento I/O 2",
+        50,
+        75,
+        400,
+        EventType.A,
+        rotina0,
+        Device("Impressora", "Saída")
+    )
+    val listaDeEventos2 = listOf(eventoD, eventoB, eventoC, eventoA, eventoE ,eventoF,eventoI_O,eventoI_O2 )
+    val listaDeEventos = listOf(eventoA)
+    val listaDeEventos_io = listOf(eventoB, eventoI_O, eventoI_O2, eventoD)
+    val lEOrdenada = listaDeEventos2.sortedBy { it.chegada }.toMutableList()
 
     println(lEOrdenada)
     val processoEmExecucao = mutableListOf<Evento>()
-    var instante: Int = 0//lEOrdenada[0].chegada!!
-    var tempo = 0
+    var instante: Int = lEOrdenada[0].chegada!!
+
     while (true) {
         if (estado == 1) {
-            if (lEOrdenada[0].chegada!! > instante){
+            if (lEOrdenada[0].chegada!! > instante) {
                 instante = lEOrdenada[0].chegada!!
             }
             createLog(lEOrdenada[0].name, instante, lEOrdenada[0].tipo, "Chegada e ingresso no sistema")
@@ -74,11 +118,15 @@ fun main() {
             if (!processador1.ocupado) {
                 processador1.ocupado = true
                 createLog(processoEmExecucao[0].name, instante, processoEmExecucao[0].tipo, "Alocação de processador")
+                processoEmExecucao.first().io?.let {
+                    it.lock = true
+                    createLog(processoEmExecucao[0].name, instante, processoEmExecucao[0].tipo, "Travamento de dispositivo")
+                }
                 estado = 4
             }
         } else if (estado == 4) {
             processoEmExecucao[0].rotinaAssocidada?.let { rotina ->
-                if (rotina == rotinaInterrup) {
+                if (rotina == rotinaInterrupcao) {
                     estado = 7
                 } else {
                     instante += processoEmExecucao[0].tempo
@@ -103,10 +151,25 @@ fun main() {
                         processoEmExecucao[0].tipo,
                         "Liberação de processador"
                     )
+                    processoEmExecucao.first().io?.let {
+                        it.lock = false
+                        createLog(processoEmExecucao[0].name, instante, processoEmExecucao[0].tipo, "Destravamento do dispositivo")
+
+                    }
                     estado = 5
                     logs.createLog(processoEmExecucao[0], saida = instante, reacao = Reacao.EXITO)
                 }
             } ?: proximoEvento(lEOrdenada, processoEmExecucao, true, logs)?.let { estado = 1 } ?: break
+//                processador1.ocupado = false
+//                createLog(
+//                    processoEmExecucao[0].name,
+//                    instante,
+//                    processoEmExecucao[0].tipo,
+//                    "Liberação de processador"
+//                )
+//                memoria1.limpar()
+//                createLog(processoEmExecucao[0].name, instante, processoEmExecucao[0].tipo, "Liberação de Memória")
+//
 
         } else if (estado == 5) {
             memoria1.limpar()
@@ -121,10 +184,10 @@ fun main() {
             logs.createLog(
                 processoEmExecucao[0],
                 chegada = instante,
-                saida = instante + rotinaInterrup.tempo!!,
+                saida = instante + rotinaInterrupcao.tempo!!,
                 reacao = Reacao.INTERRUPCAO
             )
-            instante += rotinaInterrup.tempo
+            instante += rotinaInterrupcao.tempo
             val random = (0..1).random()
             print("+++++++++++++++++++++++++++ RAMDOM:$random +++++++++++++++++++++++++++")
             if (random == 0) {
@@ -136,7 +199,12 @@ fun main() {
                 proximoEvento(lEOrdenada, processoEmExecucao, interrupcao = true)?.let {
 
                     processador1.ocupado = false
-                    createLog(processoEmExecucao[0].name, instante, processoEmExecucao[0].tipo, "Liberação de processador")
+                    createLog(
+                        processoEmExecucao[0].name,
+                        instante,
+                        processoEmExecucao[0].tipo,
+                        "Liberação de processador"
+                    )
                     logs.createLog(processoEmExecucao[0], saida = instante, reacao = Reacao.FALHA)
                     memoria1.limpar()
                     createLog(processoEmExecucao[0].name, instante, processoEmExecucao[0].tipo, "Liberação de Memória")

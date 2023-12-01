@@ -5,5 +5,5 @@ data class Evento(
     val memoria: Int,
     val tipo: EventType,
     var rotinaAssocidada: Rotina? = null,
+    val io: Device? = null,
 )
-
